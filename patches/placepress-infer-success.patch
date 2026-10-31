@@ -1,0 +1,15 @@
+diff --git a/controllers/placepress_controller.py b/controllers/placepress_controller.py
+index c4adf68..ea81017 100644
+--- a/controllers/placepress_controller.py
++++ b/controllers/placepress_controller.py
+@@ -216,7 +216,9 @@ class PlacePressTaskController(BaseController):
+             abs(object_pos[0] - target_position[0]) < 0.05 and  
+             abs(object_pos[1] - target_position[1]) < 0.05 and
+             end_button_position[2] < 0.761 ):  
+-            self.current_phase == Phase.FINISHED
++            # Upstream compared (==) instead of assigning, so the episode never ended or counted as a success.
++            self.current_phase = Phase.FINISHED
++            self._last_success = True
+             return True
+         return False
+ 

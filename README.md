@@ -10,15 +10,38 @@ Physical AI応用1講座の最終課題です。化学・生命科学の実験�
 | タスク | 内容 | デモ | 学習 | 評価（成功率） | 論文（ACT / DP） |
 |---|---|---|---|---|---|
 | `level1_place` | 掴んだビーカーを目標の台へ運んで置く（掴む動作はお手本） | 100本 | ACT、60エポック、約3時間 | **50/50（100%）** | 73.3% / 80.0% |
-| `level2_HeatLiquid` | ビーカーを掴む → 加熱台に置く → ボタンを押す（3段階すべてを方策が担当） | 100本 | ACT、51エポック（学習中） | 未評価 | 86.7% / 25.0% |
+| `level2_HeatLiquid` | ビーカーを掴む → 加熱台に置く → ボタンを押す（3段階すべてを方策が担当） | 100本 | ACT、51エポック、約9.5時間 | **49/50（98%）**（グリッパー補正あり）<br>0/3（補正なし） | 86.7% / 25.0% |
 
-![学習した方策がビーカーを置く様子](results/level1_place_policy_rollout.jpg)
+![学習した方策が、ビーカーを加熱台に置いてボタンを押す様子](results/level2_HeatLiquid_policy_rollout.jpg)
 
-上の画像は、学習したACT方策による `level1_place` の1本目です。左から正面、真上、手首のカメラで、約0〜7秒の「掴む」まではお手本、その後は方策が動かしています。50本から無作為に選んだ8本の最終フレームは `results/level1_place_final_frames.jpg`、学習曲線は `results/level1_place_act_train_loss.png` にあります。
+上の画像は、学習したACT方策による `level2_HeatLiquid` の1本目です。左から正面、真上、手首のカメラです。掴む、運んで置く、ボタンを押すまでのすべてを、方策が画像を見て行っています。
+
+`results/` にある、そのほかの画像は次のとおりです。
+
+- `level1_place_policy_rollout.jpg`：`level1_place` の様子。約0〜7秒の「掴む」まではお手本、その後は方策が動かす
+- `*_final_frames.jpg`：評価から無作為に選んだ8本の最終フレーム
+- `level2_HeatLiquid_failure_episode.jpg`：唯一の失敗例。腕がビーカーに近づかないまま、上限の2500ステップに達した
+- `act_train_loss.png`：学習曲線
 
 評価条件の注意：
-- 物体の配置範囲は学習時と同じです（分布内の評価）。
-- 成功の判定は上流のコードのままで、ビーカーが目標から水平5cm以内、高さが初期値から5cm以内に入った時点で成功とします。グリッパーを開いたかどうかは見ていません。
+
+- 物体の配置範囲は、学習時と同じです（分布内の評価）。
+- 成功の判定は、上流のコードのままです。
+  - `level1_place`：ビーカーが、目標から水平5cm以内、高さが初期値から5cm以内に入った時点で成功とします。グリッパーを開いたかどうかは見ていません。
+  - `level2_HeatLiquid`：ビーカーが加熱台の上（水平5cm以内）にあり、ボタンが押し込まれた時点で成功とします。
+- 1本の長さは、`level1_place` が平均13秒、`level2_HeatLiquid` が平均24秒（成功した回）です（シミュレーション時間）。
+
+### 把持の失敗と、その対策（グリッパー補正）
+
+`level2_HeatLiquid` で学習した方策は、最初の評価では3回とも失敗しました。ビーカーまで手を伸ばして挟むところまではできるのに、持ち上げると滑り落ちてしまうのです。原因は、デモの記録方式にありました。
+
+- LabUtopiaのデモは、行動として「次の時刻の関節角」、つまり指令した値ではなく実際の位置を記録しています。
+- ビーカーを握っている間、指は約0.0274（ビーカーの幅）で止まっています。一方で、お手本の指令は0.022まで閉じる値でした。この差が、握る力になっています。
+- 学習した方策は、記録された実際の位置を指令します。指令が今の位置と同じなので、握る力が生まれず、ビーカーが滑り落ちます。
+
+推論のときだけ、方策が「閉じる」側の値（0.035未満）を出したら、お手本と同じだけ（0.006）深く閉じるようにしました（`patches/infer-gripper-squeeze.patch`。評価の設定で `infer.gripper_squeeze` を指定したときだけ効きます）。この補正で、成功率は0/3から49/50になりました。
+
+同時に、上流の成功判定にあった不具合も直しています（`patches/placepress-infer-success.patch`）。代入のつもりが比較（`==`）になっていたため、推論モードでは成功してもエピソードが終わらず、成功として数えられませんでした。
 
 ## 環境
 
@@ -63,6 +86,7 @@ bash scripts/train.sh dgx_train_act data/level1_place act_level1_place \
 # 4. 推論用の重みを書き出し、configs/eval_act_level1_place.yaml の重みの場所を合わせて評価
 .venv/bin/python scripts/export_policy.py out/train/<run>/checkpoints/latest.ckpt out/train/<run>/checkpoints/policy_ema.ckpt
 bash scripts/collect_parallel.sh eval_act_level1_place 25 25
+bash scripts/collect_parallel.sh eval_act_level2_HeatLiquid 17 17 16 -- --backend gpu   # infer.gripper_squeeze を指定済み
 ```
 
 ## 工夫した点
@@ -79,6 +103,8 @@ bash scripts/collect_parallel.sh eval_act_level1_place 25 25
 - **データの形式**：学習側は、エピソードを1つにまとめたHDF5しか読めないため、`scripts/make_dataset.py` を用意しました。
 - **重みの形式**：学習で保存される重みと、推論側が読む形式が違うため、`scripts/export_policy.py` で変換します。テンソルだけを書き出すので、推論側はPyTorchの安全な読み込み（`weights_only`）のまま読めます。
 - **推論時の切り替え**：推論モードで、掴み終えても方策に制御が移らず止まる不具合を直しました（`patches/place-infer-handover.patch`）。
+- **成功判定**：`placepress` の成功判定は、代入のつもりが比較になっていて、推論モードでは成功が数えられませんでした。これを直しました（`patches/placepress-infer-success.patch`）。
+- **把持力の補正**：デモの記録方式が原因で、学習した方策の把持が滑る問題がありました。推論時に、閉じる指令を補正して解決しました（`patches/infer-gripper-squeeze.patch`。詳しくは「結果」の節）。
 
 **デモ収集の高速化**
 - Isaac Simを複数プロセスで同時に動かす `scripts/collect_parallel.sh` を作りました。

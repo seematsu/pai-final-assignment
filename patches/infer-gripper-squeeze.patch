@@ -1,0 +1,19 @@
+diff --git a/controllers/inference_engines/base_inference_engine.py b/controllers/inference_engines/base_inference_engine.py
+index 8d48024..22c5e98 100644
+--- a/controllers/inference_engines/base_inference_engine.py
++++ b/controllers/inference_engines/base_inference_engine.py
+@@ -139,6 +139,14 @@ class BaseInferenceEngine(ABC):
+             obs_dict = self._prepare_observation_dict()
+             
+             joint_positions = self._predict_action(obs_dict, self.language_instruction)
++            # Demonstrations record the measured finger position as the action, so a closing gripper is labelled
++            # with the object width and replaying it gives no grip force. infer.gripper_squeeze (if set) commands
++            # that much further closed whenever the policy asks to close, as the scripted expert did.
++            squeeze = float(self.cfg.infer.get("gripper_squeeze", 0.0) or 0.0)
++            if squeeze > 0:
++                joint_positions = np.array(joint_positions, copy=True)
++                closing = joint_positions[:, 7] < float(self.cfg.infer.get("gripper_open_threshold", 0.035))
++                joint_positions[closing, 7] = np.maximum(joint_positions[closing, 7] - squeeze, 0.0)
+             self.trajectory_controller.generate_trajectory(joint_positions[:40, :])
+         
+         return self.trajectory_controller.get_next_action()

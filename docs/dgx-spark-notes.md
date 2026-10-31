@@ -129,3 +129,30 @@ USDの解析ライブラリ `pxr`（USD 0.26）で、全USDレイヤを解析し
 ## セキュリティ確認
 
 確認は2026-10-24に、実行前の静的な検査として行いました。結果は [security-review.md](security-review.md) にまとめています。
+
+### 学習と評価（ACT、`level2_HeatLiquid`、DGX Spark）
+
+**学習**
+
+- 設定：`bash scripts/train.sh dgx_train_act data/level2_HeatLiquid act_level2_HeatLiquid training.num_epochs=51 training.checkpoint_every=10 training.val_every=1000`
+- 所要時間：1エポックが847イテレーションで、約11分。51エポックで約9.5時間（2026-10-31 17:35 〜 11-01 03:02）。
+- 損失：`train_loss` は0.157から0.0062まで下がった。
+- 評価に使った重み：50エポック目のEMAの重み。
+
+**評価**
+
+- 設定：`configs/eval_act_level2_HeatLiquid.yaml` を `--backend gpu` で実行した。
+- 補正なしの試し（`out/20261101-030236_eval_act_level2_HeatLiquid_try/`）：**0/3**。3本とも上限の2500ステップで打ち切られた。動画では、ビーカーを挟めても持ち上げると滑り落ち、つかみ直しを繰り返していた。
+
+**失敗の原因**
+
+1. **上流の成功判定の不具合**：`placepress_controller.is_success()` が `self.current_phase == Phase.FINISHED`（比較）になっていて、エピソードが終わらず、`_last_success` も立たなかった。`patches/placepress-infer-success.patch` で直した。
+2. **把持力が出ない**：デモの `actions` は「次の時刻の関節角」なので、把持中の指の値はビーカーの幅（約0.0274）になる。お手本は0.022まで閉じる指令を出しており、その差が握る力になっていた。方策は約0.0274を指令するので、力がかからない。
+
+**対策と結果**
+
+- 対策：`patches/infer-gripper-squeeze.patch` で、推論時に指の指令が0.035未満（閉じる側）なら0.006だけ深く閉じるようにした。設定の `infer.gripper_squeeze` で有効になる。
+- 補正ありの試し（`out/20261101-031436_eval_act_level2_HeatLiquid_try2/`）：3/3。
+- 本評価：**49/50（98%）**。出力は `out/20261101-0321{41,46,51}_eval_act_level2_HeatLiquid_p{0,1,2}/`。3プロセス並列で約1時間45分かかった。
+- 1本の長さ：成功した49回で21.9〜28.4秒（平均23.8秒）。
+- 唯一の失敗（`p1` の `episode_16`）：腕がビーカーに近づかないまま、上限の2500ステップに達した。
