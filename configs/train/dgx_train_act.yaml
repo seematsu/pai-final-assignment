@@ -1,0 +1,22 @@
+# ACT training on top of upstream policy/config/train_act_image_workspace.yaml.
+# The upstream workspace reads checkpoint.topk and checkpoint.save_last_snapshot, which the upstream yaml lacks,
+# and the upstream camera_names (camera_0/1) do not match the dataset keys (camera_1_rgb/camera_2_rgb).
+# Usage (from repo/): python train.py --config-dir ../configs/train --config-name dgx_train_act task.dataset_path=...
+defaults:
+  - train_act_image_workspace
+  - _self_
+
+policy:
+  camera_names: [camera_1_rgb, camera_2_rgb]
+
+checkpoint:
+  topk:
+    monitor_key: train_loss
+    mode: min
+    k: 3
+    format_str: 'epoch={epoch:04d}-train_loss={train_loss:.4f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+logging:
+  mode: disabled

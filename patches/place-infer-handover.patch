@@ -1,0 +1,17 @@
+diff --git a/controllers/place_controller.py b/controllers/place_controller.py
+index af0bbfd..1786a12 100644
+--- a/controllers/place_controller.py
++++ b/controllers/place_controller.py
+@@ -159,6 +159,12 @@ class PlaceTaskController(BaseController):
+             self.reset_needed = True
+             return None, True, self._last_success
+         
++        if self.current_phase == Phase.PICKING and self.pick_controller.is_done() and self._check_phase_success():
++            # Hand over to the learned policy once the scripted pick has lifted the object (as in collect mode).
++            self.current_phase = Phase.PLACING
++            self.inference_engine.reset()
++            return None, False, False
++
+         if self.current_phase == Phase.PICKING:
+             action = None
+             action = self.pick_controller.forward(

@@ -1,0 +1,21 @@
+# uv environment and caches
+.venv/
+.python/
+.cache/
+.config/
+.local/
+.tools/
+__pycache__/
+
+# outputs, datasets, checkpoints (large; logs contain absolute paths)
+out/
+data/
+*.ckpt
+*.h5
+*.hdf5
+*.mp4
+*.log
+
+# local state (license consent is recorded per user, not shipped)
+environment/
+.migration-backup/

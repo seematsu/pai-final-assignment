@@ -1,0 +1,22 @@
+diff --git a/main.py b/main.py
+index 0a71578..e543ab9 100644
+--- a/main.py
++++ b/main.py
+@@ -23,7 +23,7 @@ args = parse_args()
+ 
+ # Set up simulation app based on arguments
+ simulation_config = {
+-    "headless": False,
++    "headless": args.headless,
+     "extra_args": ["--/rtx/raytracing/fractionalCutoutOpacity=true"],
+ }
+ 
+@@ -68,7 +68,7 @@ def main():
+         show_video = False
+     else:
+         save_video = True
+-        show_video = True
++        show_video = not args.headless
+ 
+     robot = create_robot(
+         cfg.robot.type,
