@@ -104,6 +104,8 @@ bash scripts/collect_parallel.sh eval_act_level1_place 25 25
 
 ## ライセンスとクレジット
 
-- このリポジトリのコードは、上流に合わせてMITライセンスとします（[LICENSE](LICENSE)）。
-- [LabUtopia](https://github.com/Rui-li023/LabUtopia)（Rui Li ほか、NeurIPS 2025、MITライセンス）を、サブモジュールとして参照しています。シーンのアセットは再配布せず、上流から取得します。アセットの利用条件は、上流の記載に従ってください。
-- Isaac Simの利用には、NVIDIA Omniverse License Agreementへの同意が必要です。
+- **このリポジトリのコード**：MITライセンスです（[LICENSE](LICENSE)）。`configs/` と `patches/` には LabUtopia のコード（Copyright (c) 2025 辰、MITライセンス）由来の部分が含まれます。その著作権表示と許諾文は [LICENSE](LICENSE) に収めています。
+- **LabUtopia のコード**：[LabUtopia](https://github.com/Rui-li023/LabUtopia)（Rui Li ほか、NeurIPS 2025）をサブモジュールとして参照しており、MITライセンスです。
+- **シーンのアセット**：LabUtopia のシーンのアセット（3Dモデル・USD）は [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) で提供されています。このリポジトリには含めず、上流から取得します。
+- **評価の画像と動画**：`results/` の画像と課題の動画は、このアセットを Isaac Sim で描画したシミュレーションの映像です（シーンそのものは改変していません）。非営利の教育目的（講座の課題）で使っています。アセットの出典は LabUtopia（Rui Li ほか）、ライセンスは CC BY-NC 4.0 です。
+- **Isaac Sim**：再配布していません。利用者がそれぞれ、NVIDIA Omniverse License Agreement に同意する必要があります。
