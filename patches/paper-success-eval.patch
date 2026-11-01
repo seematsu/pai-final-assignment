@@ -1,0 +1,88 @@
+diff --git a/controllers/base_controller.py b/controllers/base_controller.py
+index 50123cf..c570c2d 100644
+--- a/controllers/base_controller.py
++++ b/controllers/base_controller.py
+@@ -1,6 +1,10 @@
+ from abc import ABC, abstractmethod 
+ from typing import Dict, Any, Tuple, Optional
++import json
++import os
++import numpy as np
+ import torch
++from pxr import Gf, Usd, UsdGeom, UsdPhysics
+ from omegaconf import OmegaConf
+ from controllers.inference_engines.inference_engine_factory import InferenceEngineFactory
+ from controllers.robot_controllers.grapper_manager import Gripper
+@@ -134,8 +138,72 @@ class BaseController(ABC):
+         if self._last_failure_reason:
+             print(f"Failure Reason: {self._last_failure_reason}")
+     
++    def _paper_success(self, within_tolerance: bool, extra_ok: bool = True) -> bool:
++        """Success rule for evaluation, following the LabUtopia paper (Sec. 4.2).
++
++        The paper counts a task as successful when the state stays within the goal tolerance
++        "continuously ... for 2 seconds". The tolerance itself is the upstream task code's.
++        Enabled by infer.success_hold_steps (> 0); otherwise the upstream instantaneous check is kept.
++        Every step also records measurements (lift, tilt) that are reported, not judged.
++        """
++        infer_cfg = self.cfg.get("infer", {}) if hasattr(self.cfg, "get") else {}
++        hold_steps = int(infer_cfg.get("success_hold_steps", 0) or 0)
++        m = getattr(self, "_paper_metrics", None)
++        if m is None:
++            m = self._paper_metrics = {"steps": 0, "hold": 0, "longest_hold": 0, "first_within_step": None,
++                                       "start_z": None, "max_lift_m": 0.0, "max_tilt_deg": 0.0,
++                                       "tilt_at_success_deg": None, "start_up": None}
++        m["steps"] += 1
++        z = float(self.state["object_position"][2])
++        m["start_z"] = z if m["start_z"] is None else m["start_z"]
++        m["max_lift_m"] = max(m["max_lift_m"], z - m["start_z"])
++        up = self._object_up_axis()
++        if up is not None:
++            m["start_up"] = up if m["start_up"] is None else m["start_up"]
++            tilt = float(np.degrees(np.arccos(np.clip(np.dot(up, m["start_up"]), -1.0, 1.0))))
++            m["max_tilt_deg"] = max(m["max_tilt_deg"], tilt)
++        else:
++            tilt = None
++        if within_tolerance and m["first_within_step"] is None:
++            m["first_within_step"] = m["steps"]
++        if hold_steps <= 0:
++            ok = within_tolerance and extra_ok
++        else:
++            m["hold"] = m["hold"] + 1 if within_tolerance else 0
++            m["longest_hold"] = max(m["longest_hold"], m["hold"])
++            ok = m["hold"] >= hold_steps and extra_ok
++        if ok and m["tilt_at_success_deg"] is None:
++            m["tilt_at_success_deg"] = tilt
++        return ok
++
++    def _object_up_axis(self):
++        """World direction of the object's local Z axis (tilt is measured against its value at episode start)."""
++        path = self.state.get("object_path") if isinstance(self.state, dict) else None
++        prim = self.object_utils._stage.GetPrimAtPath(path) if path else None
++        if prim is None or not prim.IsValid():
++            return None
++        # The simulated body is usually a child (e.g. <object>/mesh with RigidBodyAPI); the parent Xform does not move.
++        body = next((p for p in Usd.PrimRange(prim) if p.HasAPI(UsdPhysics.RigidBodyAPI)), None)
++        prim = body or prim
++        v = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default()).TransformDir(Gf.Vec3d(0, 0, 1))
++        v = np.array([v[0], v[1], v[2]], dtype=float)
++        n = np.linalg.norm(v)
++        return v / n if n > 0 else None
++
++    def _write_paper_metrics(self) -> None:
++        m = getattr(self, "_paper_metrics", None)
++        if not m or self.mode != "infer":
++            return
++        record = {k: v for k, v in m.items() if k not in ("hold", "start_up", "start_z")}
++        record.update({"episode": self._episode_num, "success": bool(self._last_success)})
++        path = os.path.join(self.cfg.multi_run.run_dir, "paper_eval.jsonl")
++        with open(path, "a", encoding="utf-8") as f:
++            f.write(json.dumps(record) + "\n")
++        self._paper_metrics = None
++
+     def reset(self) -> None:
+         """Reset the controller state between episodes."""
++        self._write_paper_metrics()
+         if self._last_success:
+             self.success_count += 1
+         self._episode_num += 1

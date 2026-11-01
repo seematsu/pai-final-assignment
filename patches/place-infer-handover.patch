@@ -1,5 +1,5 @@
 diff --git a/controllers/place_controller.py b/controllers/place_controller.py
-index af0bbfd..1786a12 100644
+index af0bbfd..dffa86d 100644
 --- a/controllers/place_controller.py
 +++ b/controllers/place_controller.py
 @@ -159,6 +159,12 @@ class PlaceTaskController(BaseController):
@@ -15,3 +15,13 @@ index af0bbfd..1786a12 100644
          if self.current_phase == Phase.PICKING:
              action = None
              action = self.pick_controller.forward(
+@@ -178,7 +184,8 @@ class PlaceTaskController(BaseController):
+     def is_success(self):
+         object_pos = self.state["object_position"]
+         target_position = self.state['target_position']
+-        if (np.linalg.norm(object_pos[:2] - target_position[:2]) < 0.05 and abs(object_pos[2] - self.initial_position[2]) < 0.05):
++        within = (np.linalg.norm(object_pos[:2] - target_position[:2]) < 0.05 and abs(object_pos[2] - self.initial_position[2]) < 0.05)
++        if self._paper_success(within):
+             self._last_success = True
+             self.current_phase = Phase.FINISHED
+             return True

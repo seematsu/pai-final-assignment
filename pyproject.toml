@@ -33,6 +33,7 @@ dependencies = [
   "numpy==1.26.0",
   "sentry-sdk==2.29.1",
   "ipython>=9.10.1",
+  "imageio-ffmpeg>=0.7.0",
 ]
 
 [tool.uv]
