@@ -25,6 +25,7 @@ Physical AI応用1講座の最終課題です。化学・生命科学の実験�
 |---|---|---|
 | `level1_place` | 50/50 | **50/50（100%）** |
 | `level2_HeatLiquid` | 49/50 | **46/50（92%）** |
+| `level2_HeatLiquid`（補足：力制御 10N） | 50/50 | 50/50（100%） |
 
 - **HeatLiquidで失敗に変わった3回**：ボタンを押したあと、グリッパーがボタンの部品を引っかけて外してしまい、押された状態が約1.1〜1.4秒しか続かなかった（`results/level2_HeatLiquid_hold_failure_button.jpg`）。
 - **20cmの条件**：許容範囲に入った49回はすべて満たしていた（持ち上げ高さは20.6〜24.4cm）。
@@ -59,6 +60,17 @@ Physical AI応用1講座の最終課題です。化学・生命科学の実験�
 - 学習した方策は、記録された実際の位置を指令します。指令が今の位置と同じなので、握る力が生まれず、ビーカーが滑り落ちます。
 
 推論のときだけ、方策が「閉じる」側の値（0.035未満）を出したら、お手本と同じだけ（0.006）深く閉じるようにしました（`patches/infer-gripper-squeeze.patch`。評価の設定で `infer.gripper_squeeze` を指定したときだけ効きます）。この補正で、成功率は0/3から49/50になりました。
+
+#### 補足：力制御での把持
+
+上流の開発中の `Dev` ブランチでは、グリッパーを一定の力で閉じる方式が加えられていました。論文には制御方式の記述がなく、出力は「次の時刻の関節の位置」とだけ書かれているので、上の補正（位置の指令のまま）を本命の結果とし、力制御は比較として試しました。
+
+- 方法：方策が「閉じる」側の値を出したら、指の目標を全閉にし、指を動かす力の上限を10Nにする（`infer.gripper_force: 10`）。学習はやり直していない。標準の指の駆動（位置ゲイン400、最大7.2N）では上限が効かないので、駆動する側の指だけ `Dev` ブランチと同じゲイン（400→6000、減衰80→200）にした。
+- 試走（各3回）：10N・20N・40Nのすべてで3/3成功。ただし強く握るほど、成功時のビーカーの傾きが大きくなった（10Nで1.8〜2.3°、20Nで9.0〜12.1°、40Nで19.6〜29.2°）。
+- 10Nでの評価（50回、論文の記述に沿った判定）：**50/50**。成功時の傾きは中央値2.2°・最大3.9°、持ち上げ高さは23.5〜26.9cm。
+- 位置の補正（46/50）との差は、50回ずつでは統計的に有意ではない（Fisher の正確検定で p = 0.12）。
+
+設定は `configs/eval_paper_act_level2_HeatLiquid_force.yaml`、実装は `patches/infer-gripper-squeeze.patch` です。
 
 同時に、上流の成功判定にあった不具合も直しています（`patches/placepress-infer-success.patch`）。代入のつもりが比較（`==`）になっていたため、推論モードでは成功してもエピソードが終わらず、成功として数えられませんでした。
 
@@ -106,6 +118,7 @@ bash scripts/train.sh dgx_train_act data/level1_place act_level1_place \
 .venv/bin/python scripts/export_policy.py out/train/<run>/checkpoints/latest.ckpt out/train/<run>/checkpoints/policy_ema.ckpt
 bash scripts/collect_parallel.sh eval_act_level1_place 25 25
 bash scripts/collect_parallel.sh eval_act_level2_HeatLiquid 17 17 16 -- --backend gpu   # infer.gripper_squeeze を指定済み
+LABUTOPIA_GRIPPER_FORCE=10 bash scripts/collect_parallel.sh eval_paper_act_level2_HeatLiquid_force 17 17 16 -- --backend gpu   # 補足：力制御
 ```
 
 ## 工夫した点

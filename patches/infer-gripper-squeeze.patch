@@ -1,8 +1,8 @@
 diff --git a/controllers/inference_engines/base_inference_engine.py b/controllers/inference_engines/base_inference_engine.py
-index 8d48024..22c5e98 100644
+index 8d48024..129a0b6 100644
 --- a/controllers/inference_engines/base_inference_engine.py
 +++ b/controllers/inference_engines/base_inference_engine.py
-@@ -139,6 +139,14 @@ class BaseInferenceEngine(ABC):
+@@ -139,10 +139,42 @@ class BaseInferenceEngine(ABC):
              obs_dict = self._prepare_observation_dict()
              
              joint_positions = self._predict_action(obs_dict, self.language_instruction)
@@ -10,10 +10,40 @@ index 8d48024..22c5e98 100644
 +            # with the object width and replaying it gives no grip force. infer.gripper_squeeze (if set) commands
 +            # that much further closed whenever the policy asks to close, as the scripted expert did.
 +            squeeze = float(self.cfg.infer.get("gripper_squeeze", 0.0) or 0.0)
-+            if squeeze > 0:
++            force = float(self.cfg.infer.get("gripper_force", 0.0) or 0.0)
++            if squeeze > 0 or force > 0:
 +                joint_positions = np.array(joint_positions, copy=True)
 +                closing = joint_positions[:, 7] < float(self.cfg.infer.get("gripper_open_threshold", 0.035))
-+                joint_positions[closing, 7] = np.maximum(joint_positions[closing, 7] - squeeze, 0.0)
++                if force > 0:
++                    # infer.gripper_force (N per finger): close towards fully shut with the finger drive capped at
++                    # that force, so the grip holds a constant force regardless of the object width.
++                    self._cap_finger_force(force)
++                    joint_positions[closing, 7] = 0.0
++                else:
++                    joint_positions[closing, 7] = np.maximum(joint_positions[closing, 7] - squeeze, 0.0)
              self.trajectory_controller.generate_trajectory(joint_positions[:40, :])
          
          return self.trajectory_controller.get_next_action()
+-    
++
++    def _cap_finger_force(self, force: float):
++        # The stock finger drive (kp 400, max 7.2 N) cannot reach a stiff cap, so the driven finger gets the stiff
++        # servo gains LabUtopia's Dev branch uses for its force mode (kp 6000, kd 200) and the cap sets the force.
++        # The second finger is a mimic joint (kp 0) and is left alone.
++        robot = self.trajectory_controller.articulation_rmp.get_robot_articulation()
++        controller = robot.get_articulation_controller()
++        kps, kds = (np.array(g, dtype=np.float32, copy=True) for g in controller.get_gains())
++        if not hasattr(self, "_driven_fingers"):
++            fingers = list(robot.gripper.joint_dof_indicies)
++            self._driven_fingers = [i for i in fingers if kps[i] > 0]
++            print(f"[gripper_force] finger dofs {fingers} kp {kps[fingers]} kd {kds[fingers]} "
++                  f"max_effort {controller.get_max_efforts()[fingers]} -> driven {self._driven_fingers}, "
++                  f"kp 6000 kd 200 max {force} N", flush=True)
++        kps[self._driven_fingers], kds[self._driven_fingers] = 6000.0, 200.0
++        controller.set_gains(kps=kps, kds=kds)
++        controller.set_max_efforts(np.full(len(self._driven_fingers), force), joint_indices=np.array(self._driven_fingers))
++
+     def close(self):
+         """Close the inference engine, release resources"""
+         pass 
+\ No newline at end of file
