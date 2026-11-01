@@ -4,6 +4,9 @@ Training saves {'cfg', 'state_dicts': {'model', 'ema_model', 'optimizer'}, 'pick
 while controllers/inference_engines/local_model_inference_engine.py reads {'state_dict': ...}.
 The exported file holds tensors only, so the inference side loads it with torch's weights_only default.
 
+Security: the input is a full pickle (dill), so loading it can run code embedded in the file. Pass only
+checkpoints you trained yourself; never a .ckpt downloaded or received from someone else.
+
 Usage: python scripts/export_policy.py <workspace.ckpt> <policy.ckpt> [--no-ema]
 """
 import argparse
@@ -19,7 +22,7 @@ def main():
     parser.add_argument("--no-ema", action="store_true", help="export the raw model instead of the EMA model")
     args = parser.parse_args()
 
-    # Only our own training checkpoints are loaded here; they are dill pickles.
+    # Only our own training checkpoints are loaded here; they are dill pickles (see the security note above).
     payload = torch.load(args.checkpoint, map_location="cpu", pickle_module=dill, weights_only=False)
     key = "model" if args.no_ema or "ema_model" not in payload["state_dicts"] else "ema_model"
     state_dict = payload["state_dicts"][key]
