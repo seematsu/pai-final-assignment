@@ -1,0 +1,35 @@
+[
+  {"kind": "card", "seconds": 5, "lines": [
+    ["title", "実験室ロボット作業の模倣学習"],
+    ["p", "LabUtopia（Isaac Sim）× ACT ／ NVIDIA DGX Spark 1台でデモ収集・学習・評価"],
+    ["p", ""],
+    ["h", "タスク：ビーカーを掴む → 加熱台に置く → ボタンを押す"],
+    ["small", "Franka Emika Panda ／ シミュレーション映像（等倍）"]
+  ]},
+  {"kind": "clip", "path": "out/20261030-233049_collect_level2_HeatLiquid_p0/video/episode_0.mp4",
+   "heading": "① 学習データ：お手本（ステートマシン）が集めたデモ",
+   "note": "物体の位置をランダムに変えて100本を自動収集（5並列・約3.5時間）"},
+  {"kind": "clip", "path": "out/20261101-030236_eval_act_level2_HeatLiquid_try/video/episode_0.mp4", "start": 4, "end": 27,
+   "heading": "② 学習した方策（ACT）：補正なし → 失敗",
+   "note": "掴めても持ち上げると滑り落ちる。記録された指の位置がビーカーの幅のままで、握る力が出ない"},
+  {"kind": "clip", "path": "out/20261101-032141_eval_act_level2_HeatLiquid_p0/video/episode_0.mp4",
+   "heading": "③ 学習した方策（ACT）：グリッパー補正あり → 成功",
+   "note": "カメラ画像と関節角だけから、掴む・置く・ボタンを押すまでを実行（成功率 49/50）"},
+  {"kind": "clip", "path": "out/20261101-032151_eval_act_level2_HeatLiquid_p2/video/episode_3.mp4",
+   "heading": "③ 学習した方策（ACT）：グリッパー補正あり → 成功（別の配置）",
+   "note": "ビーカーと加熱台の位置はエピソードごとにランダム"},
+  {"kind": "clip", "path": "out/20261031-151327_eval_act_level1_place_p0/video/episode_0.mp4",
+   "heading": "④ 別のタスク：ビーカーを目標の台に置く",
+   "note": "掴む動作はお手本、運んで置く動作を学習した方策が実行（成功率 50/50）"},
+  {"kind": "clip", "path": "out/20261031-151332_eval_act_level1_place_p1/video/episode_0.mp4",
+   "heading": "④ 別のタスク：ビーカーを目標の台に置く（別の配置）",
+   "note": ""},
+  {"kind": "card", "seconds": 7, "lines": [
+    ["h", "結果（各50回の評価）"],
+    ["p", "加熱台に置いてボタンを押す：49/50（上流コードの判定） ／ 46/50（論文の記述に沿った判定）"],
+    ["p", "目標の台に置く：50/50 ／ 50/50　　（論文の値：ACT 86.7% ／ 73.3%）"],
+    ["p", ""],
+    ["p", "コード：github.com/seematsu/pai-final-assignment"],
+    ["small", "シーンのアセット：LabUtopia（Rui Li ほか）CC BY-NC 4.0 ／ 非営利の教育目的で使用"]
+  ]}
+]
